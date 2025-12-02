@@ -12,11 +12,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    # -------------------------
+    # Clone repository
+    # -------------------------
     - uses: actions/checkout@v4
 
-    # ============================================
-    # BACKEND SETUP (PYTHON + FLASK)
-    # ============================================
+    # -------------------------
+    # PYTHON / BACKEND SETUP
+    # -------------------------
     - name: Set up Python 3.10
       uses: actions/setup-python@v4
       with:
@@ -28,11 +31,12 @@ jobs:
         pip install -r backend/requirements.txt
 
     - name: Start Flask backend
+      working-directory: backend
       run: |
-        nohup python app.py > flask.log 2>&1 &
+        nohup python app.py > ../flask.log 2>&1 &
       shell: bash
 
-    - name: Wait for Flask backend
+    - name: Wait for Flask backend on port 5000
       run: |
         echo "Waiting for Flask API at http://localhost:5000 ..."
         for i in {1..20}; do
@@ -44,9 +48,9 @@ jobs:
           sleep 2
         done
 
-    # ============================================
-    # FRONTEND SETUP (NODE + SERVE ON 3000)
-    # ============================================
+    # -------------------------
+    # NODE / FRONTEND SETUP
+    # -------------------------
     - uses: actions/setup-node@v4
       with:
         node-version: lts/*
@@ -54,38 +58,39 @@ jobs:
     - name: Install Node dependencies
       run: npm install
 
-    - name: Install serve package
+    - name: Install 'serve' globally
       run: npm install -g serve
 
-    - name: Start frontend at http://localhost:3000
+    - name: Start frontend on port 3000
+      working-directory: task-ui
       run: |
-        nohup serve frontend -l 3000 > frontend.log 2>&1 &
+        nohup serve -l 3000 . > ../frontend.log 2>&1 &
       shell: bash
 
-    - name: Wait for Frontend server
+    - name: Wait for Frontend on port 3000
       run: |
         echo "Waiting for Frontend at http://localhost:3000 ..."
         for i in {1..20}; do
           if curl -s http://localhost:3000 > /dev/null; then
-            echo "Frontend server is live!"
+            echo "Frontend is live!"
             break
           fi
           echo "Retrying ($i/20)..."
           sleep 2
         done
 
-    # ============================================
-    # PLAYWRIGHT TESTS (API + UI)
-    # ============================================
+    # -------------------------
+    # PLAYWRIGHT SETUP + RUN
+    # -------------------------
     - name: Install Playwright Browsers
       run: npx playwright install --with-deps
 
     - name: Run Playwright tests
       run: npx playwright test
 
-    # ============================================
-    # Upload HTML report
-    # ============================================
+    # -------------------------
+    # SAVE HTML REPORT
+    # -------------------------
     - uses: actions/upload-artifact@v4
       if: always()
       with:
