@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Tasks</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+  <div class="nav">
+    <div><strong>Tasks</strong></div>
+    <div>
+      <a href="index.html">Home</a>
+      <a href="#" onclick="logout()">Logout</a>
+    </div>
+  </div>
+
+  <div class="container">
+
+    <h2>Your Tasks</h2>
+
+    <div class="controls">
+      <select id="filter" onchange="loadTasks()">
+        <option value="all">All Tasks</option>
+        <option value="true">Completed</option>
+        <option value="false">Not Completed</option>
+      </select>
+    </div>
+
+    <h3>Add New Task</h3>
+    <input id="title" placeholder="Task title" />
+    <input id="description" placeholder="Task description" />
+    <button class="btn-primary" onclick="createTask()">Create Task</button>
+
+    <h3>Task List</h3>
+    <div id="taskList"></div>
+
+    <div class="pagination">
+      <button class="btn-secondary" onclick="prevPage()">Prev</button>
+      <span id="pageLabel"></span>
+      <button class="btn-secondary" onclick="nextPage()">Next</button>
+    </div>
+
+  </div>
+  <div id="toast-container"></div>
+<script src="app.js"></script>
+</body>
+</html>
