@@ -12,29 +12,104 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    # -------------------------
-    # Clone repository
-    # -------------------------
-    - uses: actions/checkout@v4
+    # ---------------------------
+    # 1. Checkout Source Code
+    # ---------------------------
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-    # -------------------------
-    # PYTHON / BACKEND SETUP
-    # -------------------------
-    - name: Set up Python 3.10
-      uses: actions/setup-python@v4
+    # ---------------------------
+    # 2. Install Python
+    # ---------------------------
+    - name: Set up Python
+      uses: actions/setup-python@v5
       with:
         python-version: "3.10"
 
     - name: Install Python dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r backend/requirements.txt
-
-    - name: Start Flask backend
       working-directory: backend
       run: |
-        nohup python app.py > ../flask.log 2>&1 &
-      shell: bash
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    # ---------------------------
+    # 3. Start Flask Backend
+    # ---------------------------
+    - name: Start Flask Backend
+      run: |
+        export FLASK_APP=backend/app.py
+        nohup python backend/app.py > backend.log 2>&1 &
+        sleep 3
+
+    - name: Wait for backend to boot
+      run: |
+        echo "Waiting for Flask API on port 5000..."
+        for i in {1..30}; do
+          if curl -s http://localhost:5000/ > /dev/null; then
+            echo "Flask backend is UP!"
+            exit 0
+          fi
+          echo "Backend not ready yet... retrying"
+          sleep 2
+        done
+        echo "Backend FAILED to start"
+        cat backend.log
+        exit 1
+
+    # ---------------------------
+    # 4. Install Node & Frontend
+    # ---------------------------
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: "18"
+
+    - name: Install frontend dependencies
+      working-directory: task-ui
+      run: npm install
+
+    - name: Install Playwright Browsers
+      run: npx playwright install --with-deps
+
+    # ---------------------------
+    # 5. Start Frontend server
+    # ---------------------------
+    - name: Start Frontend
+      working-directory: task-ui
+      run: |
+        nohup npx serve -l 3000 . > frontend.log 2>&1 &
+        sleep 3
+
+    - name: Wait for frontend to boot
+      run: |
+        echo "Waiting for Frontend on port 3000..."
+        for i in {1..30}; do
+          if curl -s http://localhost:3000 > /dev/null; then
+            echo "Frontend is UP!"
+            exit 0
+          fi
+          echo "Frontend not ready yet... retrying"
+          sleep 2
+        done
+        echo "Frontend FAILED to start!"
+        cat task-ui/frontend.log
+        exit 1
+
+    # ---------------------------
+    # 6. Run Playwright tests
+    # ---------------------------
+    - name: Run Playwright tests
+      run: npx playwright test
+
+    # ---------------------------
+    # 7. Upload Test Report
+    # ---------------------------
+    - name: Upload Playwright Report
+      uses: actions/upload-artifact@v4
+      with:
+        name: playwright-report
+        path: playwright-report/
+        retention-days: 14      shell: bash
 
     - name: Wait for Flask backend on port 5000
       run: |
