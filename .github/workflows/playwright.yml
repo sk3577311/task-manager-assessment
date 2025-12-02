@@ -52,7 +52,7 @@ jobs:
         node-version: lts/*
 
     - name: Install Node dependencies
-      run: npm ci
+      run: npm install
 
     - name: Install serve package
       run: npm install -g serve
