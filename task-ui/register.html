@@ -20,10 +20,14 @@
 
     <div id="error" style="color: red; margin-bottom: 12px;"></div>
 
-    <input type="text" id="username" placeholder="Username" />
-    <input type="password" id="password" placeholder="Password" />
+    <form onsubmit="event.preventDefault(); registerUser();">
 
-    <button class="btn-primary" onclick="registerUser()">Register</button>
+      <input type="text" id="username" placeholder="Username" />
+      <input type="password" id="password" placeholder="Password" />
+
+      <button type="submit" class="btn-primary">Register</button>
+
+    </form>
   </div>
 
   <div id="toast-container"></div>
