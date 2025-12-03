@@ -4,58 +4,77 @@ test.describe("UI FLOW — Register → Login → Create Task", () => {
 
   test("User registers, logs in, creates a task, sees it, and logs out", async ({ page }) => {
 
-    // ----------------------------
-    // 1) REGISTER NEW USER
-    // ----------------------------
     const username = `ui_user_${Date.now()}`;
     const password = "password123";
 
+    // ----------------------------
+    // 1) OPEN REGISTER PAGE (WAIT FOR FULL LOAD)
+    // ----------------------------
     await page.goto("http://localhost:3000/register.html", {
-      waitUntil: "domcontentloaded",
+      waitUntil: "load",
     });
 
-    await page.fill("#username", username);
-    await page.fill("#password", password);
-    await page.click("text=Register");
-
-    // registration redirects to login page
-    await page.waitForURL("**/login.html");
+    // Ensure JS + inputs are loaded
+    await page.waitForSelector("#username", { timeout: 10000 });
+    await page.waitForSelector("#password", { timeout: 10000 });
+    await page.waitForSelector("text=Register", { timeout: 10000 });
 
     // ----------------------------
-    // 2) LOGIN WITH NEW USER
+    // 2) REGISTER NEW USER
     // ----------------------------
     await page.fill("#username", username);
     await page.fill("#password", password);
-    await page.click("text=Login");
 
-    await page.waitForURL("**/tasks.html");
+    await Promise.all([
+      page.waitForURL("**/login.html", { timeout: 15000 }),
+      page.click("text=Register"),
+    ]);
 
     // ----------------------------
-    // 3) CREATE A TASK
+    // 3) LOGIN WITH NEW USER
     // ----------------------------
+    await page.waitForSelector("#username");
+    await page.fill("#username", username);
+    await page.fill("#password", password);
+
+    await Promise.all([
+      page.waitForURL("**/tasks.html", { timeout: 15000 }),
+      page.click("text=Login"),
+    ]);
+
+    // ----------------------------
+    // 4) CREATE A NEW TASK
+    // ----------------------------
+    await page.waitForSelector("#title", { timeout: 10000 });
+
     await page.fill("#title", "UI Test Task");
     await page.fill("#description", "This is a task created during E2E test.");
-    await page.click("text=Create Task");
 
-    // Wait for tasks to load after creation
-    await page.waitForTimeout(1000);
+    await Promise.all([
+      page.waitForResponse((res) =>
+        res.url().includes("/tasks") && res.status() === 201
+      ),
+      page.click("text=Create Task"),
+    ]);
+
+    // Give UI time to re-render
+    await page.waitForTimeout(500);
 
     // ----------------------------
-    // 4) VERIFY TASK APPEARS
+    // 5) VERIFY TASK APPEARS
     // ----------------------------
-
-    // Your tasks are rendered inside: <div id="taskList">
-    // Each task looks like: <div class="task-item"> ... </div>
-    // If your class name is different, update here accordingly:
     const firstTask = page.locator(".task-item").first();
+    await firstTask.waitFor({ timeout: 10000 });
 
     await expect(firstTask).toContainText("UI Test Task");
 
     // ----------------------------
-    // 5) LOGOUT → should return to login page
+    // 6) LOGOUT
     // ----------------------------
-    await page.click("text=Logout");
-    await page.waitForURL("**/login.html");
+    await Promise.all([
+      page.waitForURL("**/login.html", { timeout: 15000 }),
+      page.click("text=Logout"),
+    ]);
   });
 
 });
