@@ -58,13 +58,27 @@ jobs:
       run: |
         npm install -g serve
         cd task-ui
-        npm install
+        npm install || true   # safe install for static frontend
 
     - name: Start frontend
       run: |
         cd task-ui
         serve -l 3000 . > ../frontend.log 2>&1 &
-        sleep 2
+        sleep 1
+
+    - name: Wait for Frontend
+      run: |
+        for i in {1..30}; do
+          if curl -s http://localhost:3000/register.html > /dev/null; then
+            echo "Frontend started!"
+            exit 0
+          fi
+          echo "Waiting frontend ($i)..."
+          sleep 1
+        done
+        echo "Frontend failed"
+        cat frontend.log
+        exit 1
 
     # ----------------------------
     # Playwright
