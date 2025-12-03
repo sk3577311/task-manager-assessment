@@ -9,15 +9,14 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
 
     steps:
-    - name: Checkout repo
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
-    # -------------------------
-    # PYTHON / BACKEND SETUP
-    # -------------------------
+    # ----------------------------
+    # Backend Setup
+    # ----------------------------
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
@@ -31,207 +30,53 @@ jobs:
     - name: Start Flask backend
       run: |
         cd backend
-        nohup python app.py > backend.log 2>&1 &
-        sleep 5
+        python app.py > ../backend.log 2>&1 &
+        sleep 3
 
-    - name: Wait for backend to be ready
+    - name: Wait for Flask backend
       run: |
         for i in {1..40}; do
           if curl -s http://localhost:5000/ > /dev/null; then
-            echo "Backend is up!"
+            echo "Backend started!"
             exit 0
           fi
-          echo "Waiting for backend... $i"
+          echo "Waiting backend ($i)..."
           sleep 1
         done
-        echo "Backend failed to start"
-        echo "---- BACKEND LOG ----"
-        cat backend/backend.log
-        exit 1
-
-    # -------------------------
-    # FRONTEND SETUP
-    # -------------------------
-    - name: Set up Node
-      uses: actions/setup-node@v4
-      with:
-        node-version: 18
-
-    - name: Install frontend dependencies
-      run: |
-        cd task-ui
-        npm install
-
-    - name: Install serve package globally
-      run: npm install -g serve
-
-    - name: Start frontend server
-      run: |
-        cd task-ui
-        nohup serve -l 3000 &
-
-    - name: Wait for frontend to be ready
-      run: |
-        for i in {1..30}; do
-          if curl -s http://localhost:3000 > /dev/null; then
-            echo "Frontend is up!"
-            exit 0
-          fi
-          echo "Waiting for frontend... $i"
-          sleep 1
-        done
-        echo "Frontend failed to start"
-        exit 1
-
-    # -------------------------
-    # PLAYWRIGHT TESTS
-    # -------------------------
-    - name: Install Playwright Browsers
-      run: npx playwright install --with-deps
-
-    - name: Run Playwright tests
-      run: npx playwright test
-
-    # Save report
-    - uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: playwright-report
-        path: playwright-report/    # ---------------------------
-    - name: Start Flask Backend
-      run: |
-        export FLASK_APP=backend/app.py
-        nohup python backend/app.py > backend.log 2>&1 &
-        sleep 3
-
-    - name: Wait for backend to boot
-      run: |
-        echo "Waiting for Flask API on port 5000..."
-        for i in {1..30}; do
-          if curl -s http://localhost:5000/ > /dev/null; then
-            echo "Flask backend is UP!"
-            exit 0
-          fi
-          echo "Backend not ready yet... retrying"
-          sleep 2
-        done
-        echo "Backend FAILED to start"
+        echo "Backend failed"
         cat backend.log
         exit 1
 
-    # ---------------------------
-    # 4. Install Node & Frontend
-    # ---------------------------
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: "18"
-
-    - name: Install frontend dependencies
-      working-directory: task-ui
-      run: npm install
-
-    - name: Install Playwright Browsers
-      run: npx playwright install --with-deps
-
-    # ---------------------------
-    # 5. Start Frontend server
-    # ---------------------------
-    - name: Start Frontend
-      working-directory: task-ui
-      run: |
-        nohup npx serve -l 3000 . > frontend.log 2>&1 &
-        sleep 3
-
-    - name: Wait for frontend to boot
-      run: |
-        echo "Waiting for Frontend on port 3000..."
-        for i in {1..30}; do
-          if curl -s http://localhost:3000 > /dev/null; then
-            echo "Frontend is UP!"
-            exit 0
-          fi
-          echo "Frontend not ready yet... retrying"
-          sleep 2
-        done
-        echo "Frontend FAILED to start!"
-        cat task-ui/frontend.log
-        exit 1
-
-    # ---------------------------
-    # 6. Run Playwright tests
-    # ---------------------------
-    - name: Run Playwright tests
-      run: npx playwright test
-
-    # ---------------------------
-    # 7. Upload Test Report
-    # ---------------------------
-    - name: Upload Playwright Report
-      uses: actions/upload-artifact@v4
-      with:
-        name: playwright-report
-        path: playwright-report/
-        retention-days: 14      shell: bash
-
-    - name: Wait for Flask backend on port 5000
-      run: |
-        echo "Waiting for Flask API at http://localhost:5000 ..."
-        for i in {1..20}; do
-          if curl -s http://localhost:5000 > /dev/null; then
-            echo "Flask backend is live!"
-            break
-          fi
-          echo "Retrying ($i/20)..."
-          sleep 2
-        done
-
-    # -------------------------
-    # NODE / FRONTEND SETUP
-    # -------------------------
+    # ----------------------------
+    # Frontend Setup
+    # ----------------------------
     - uses: actions/setup-node@v4
       with:
         node-version: lts/*
 
-    - name: Install Node dependencies
-      run: npm install
-
-    - name: Install 'serve' globally
-      run: npm install -g serve
-
-    - name: Start frontend on port 3000
-      working-directory: task-ui
+    - name: Install frontend deps
       run: |
-        nohup serve -l 3000 . > ../frontend.log 2>&1 &
-      shell: bash
+        npm install -g serve
+        cd task-ui
+        npm install
 
-    - name: Wait for Frontend on port 3000
+    - name: Start frontend
       run: |
-        echo "Waiting for Frontend at http://localhost:3000 ..."
-        for i in {1..20}; do
-          if curl -s http://localhost:3000 > /dev/null; then
-            echo "Frontend is live!"
-            break
-          fi
-          echo "Retrying ($i/20)..."
-          sleep 2
-        done
+        cd task-ui
+        serve -l 3000 . > ../frontend.log 2>&1 &
+        sleep 2
 
-    # -------------------------
-    # PLAYWRIGHT SETUP + RUN
-    # -------------------------
+    # ----------------------------
+    # Playwright
+    # ----------------------------
     - name: Install Playwright Browsers
       run: npx playwright install --with-deps
 
     - name: Run Playwright tests
       run: npx playwright test
 
-    # -------------------------
-    # SAVE HTML REPORT
-    # -------------------------
-    - uses: actions/upload-artifact@v4
-      if: always()
+    - name: Upload report
+      uses: actions/upload-artifact@v4
       with:
         name: playwright-report
         path: playwright-report/
-        retention-days: 30
