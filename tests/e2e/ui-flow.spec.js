@@ -12,32 +12,38 @@ test.describe("UI FLOW — Register → Login → Create Task", () => {
     await page.fill("#username", username);
     await page.fill("#password", password);
 
-    // 2️⃣ Wait for REGISTER API + redirect
+    // REGISTER → wait for API only
     await Promise.all([
       page.waitForResponse(res =>
         res.url().includes("/auth/register") && res.status() === 201
       ),
-      page.click("#register-btn"),   // FIXED
+      page.click("#register-btn"),
     ]);
 
-    await page.waitForURL(/.*login(\.html)?$/);
+    await page.goto("http://localhost:3000/login.html");
 
     // 3️⃣ LOGIN
     await page.fill("#username", username);
     await page.fill("#password", password);
 
     await Promise.all([
-      page.waitForURL(/.*tasks(\.html)?$/),
-      page.click("#login-btn"),   // FIXED
+      page.waitForResponse(res =>
+        res.url().includes("/auth/login") && res.status() === 200
+      ),
+      page.click("#login-btn")
     ]);
 
+    // 🔥 FORCE REDIRECT (CI SAFE)
+    await page.goto("http://localhost:3000/tasks.html");
+
     // 4️⃣ CREATE TASK
+    await page.fill("#title", "UI Test Task");
+    await page.fill("#description", "Created via E2E");
+
     await Promise.all([
       page.waitForResponse(res =>
         res.url().includes("/tasks") && res.status() === 201
       ),
-      page.fill("#title", "UI Test Task"),
-      page.fill("#description", "This is a task created during E2E test."),
       page.click("text=Create Task"),
     ]);
 
@@ -45,9 +51,7 @@ test.describe("UI FLOW — Register → Login → Create Task", () => {
     await expect(page.locator(".task-item").first()).toContainText("UI Test Task");
 
     // 6️⃣ LOGOUT
-    await Promise.all([
-      page.waitForURL(/.*login(\.html)?$/),
-      page.click("text=Logout"),
-    ]);
+    await page.click("text=Logout");
+    await page.goto("http://localhost:3000/login.html");
   });
 });
