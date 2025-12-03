@@ -12,15 +12,14 @@ test.describe("UI FLOW — Register → Login → Create Task", () => {
     await page.fill("#username", username);
     await page.fill("#password", password);
 
-    // 2️⃣ Wait for REGISTER API + redirect to login
+    // 2️⃣ Wait for REGISTER API + redirect
     await Promise.all([
       page.waitForResponse(res =>
         res.url().includes("/auth/register") && res.status() === 201
       ),
-      page.click("#register-btn"),
+      page.click("#register-btn"),   // FIXED
     ]);
 
-    // 🔥 FIXED: Accept /login OR /login.html
     await page.waitForURL(/.*login(\.html)?$/);
 
     // 3️⃣ LOGIN
@@ -29,7 +28,7 @@ test.describe("UI FLOW — Register → Login → Create Task", () => {
 
     await Promise.all([
       page.waitForURL(/.*tasks(\.html)?$/),
-      page.click("text=Login"),
+      page.click("#login-btn"),   // FIXED
     ]);
 
     // 4️⃣ CREATE TASK
