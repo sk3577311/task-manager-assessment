@@ -1,31 +1,22 @@
-/* ============================================================
-   COMPLETE FRONTEND APP.JS FOR TASK MANAGER
-   ------------------------------------------------------------
-   - Includes Register, Login, Logout
-   - Create, Load, Update, Delete Tasks
-   - Pagination
-   - Navbar Session Handling
-   - Stable redirects (/login, /register, /tasks)
-   - Fully Playwright-compatible
-=============================================================== */
-
 const API_BASE = "http://localhost:5000";
 let currentPage = 1;
 
-/* ------------------------------------------------------------
-   TOKEN & SESSION HELPERS
------------------------------------------------------------- */
+/* ----------------- TOKEN HELPERS ----------------- */
+
 function getToken() {
   return localStorage.getItem("token");
 }
+
 function setToken(token) {
   if (token) localStorage.setItem("token", token);
   else localStorage.removeItem("token");
 }
+
 function clearSession() {
   localStorage.removeItem("token");
   localStorage.removeItem("username");
 }
+
 function getTokenPayload() {
   const token = getToken();
   if (!token) return null;
@@ -35,113 +26,72 @@ function getTokenPayload() {
     return null;
   }
 }
+
 function ensureValidToken() {
   const token = getToken();
   if (!token || token === "undefined" || token === "null") {
     clearSession();
     return false;
   }
-  const payload = getTokenPayload();
-  if (!payload) {
-    clearSession();
-    return false;
-  }
-  return true;
+  return !!getTokenPayload();
 }
 
-/* ------------------------------------------------------------
-   TOASTS
------------------------------------------------------------- */
-function showToast(message, type = "success") {
-  const container = document.getElementById("toast-container");
-  if (!container) return;
+/* ----------------- NAVBAR ----------------- */
 
-  const toast = document.createElement("div");
-  toast.className = `toast toast-${type}`;
-  toast.innerText = message;
-
-  container.appendChild(toast);
-  setTimeout(() => toast.remove(), 3000);
-}
-
-/* ------------------------------------------------------------
-   NAVBAR UPDATE
------------------------------------------------------------- */
 function updateNav() {
   const navLinks = document.getElementById("nav-links");
   const navUser = document.getElementById("nav-user");
   if (!navLinks || !navUser) return;
 
-  const loggedIn = ensureValidToken();
-  const username = localStorage.getItem("username") || "";
+  const token = getToken();
+  const username = localStorage.getItem("username");
 
   navLinks.innerHTML = "";
 
-  if (loggedIn) {
-    const tasks = document.createElement("a");
-    tasks.href = "/tasks";
-    tasks.innerText = "Tasks";
-    tasks.className = "nav-link";
-
-    const logout = document.createElement("a");
-    logout.href = "#";
-    logout.innerText = "Logout";
-    logout.className = "nav-link";
-    logout.addEventListener("click", (e) => {
-      e.preventDefault();
-      logoutUser();
-    });
-
-    navLinks.appendChild(tasks);
-    navLinks.appendChild(logout);
+  if (token && ensureValidToken()) {
+    navLinks.innerHTML = `
+      <a class="nav-link" href="/tasks.html">Tasks</a>
+      <a class="nav-link" href="#" id="logoutLink">Logout</a>
+    `;
     navUser.innerText = `Hi ${username}`;
+    document.getElementById("logoutLink").onclick = logout;
   } else {
-    const login = document.createElement("a");
-    login.href = "/login";
-    login.innerText = "Login";
-    login.className = "nav-link";
-
-    const register = document.createElement("a");
-    register.href = "/register";
-    register.innerText = "Register";
-    register.className = "nav-link";
-
-    navLinks.appendChild(login);
-    navLinks.appendChild(register);
+    navLinks.innerHTML = `
+      <a class="nav-link" href="/login.html">Login</a>
+      <a class="nav-link" href="/register.html">Register</a>
+    `;
     navUser.innerText = "";
   }
 }
 
-/* ------------------------------------------------------------
-   AUTH: REGISTER, LOGIN, LOGOUT
------------------------------------------------------------- */
-async function registerUser() {
-  const username = document.getElementById("username")?.value?.trim();
-  const password = document.getElementById("password")?.value?.trim();
-
-  if (!username || !password) return showToast("All fields required", "error");
-
-  try {
-    const res = await fetch(`${API_BASE}/auth/register`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password })
-    });
-
-    if (!res.ok) return showToast("Registration failed", "error");
-
-    showToast("Registered!", "success");
-    window.location.href = "/login";
-  } catch {
-    showToast("Network error", "error");
-  }
+function initNavbar() {
+  updateNav();
 }
+
+/* ----------------- TOAST ----------------- */
+
+function showToast(message, type = "success") {
+  const box = document.getElementById("toast-container");
+  if (!box) return;
+
+  const toast = document.createElement("div");
+  toast.className = `toast toast-${type}`;
+  toast.innerText = message;
+
+  box.appendChild(toast);
+  setTimeout(() => toast.remove(), 2500);
+}
+
+/* ----------------- AUTH ----------------- */
 
 async function login() {
   const username = document.getElementById("username")?.value?.trim();
   const password = document.getElementById("password")?.value?.trim();
 
-  if (!username || !password) return showToast("All fields required", "error");
+  if (!username || !password) {
+    showToast("Username and password required", "error");
+    return;
+  }
 
   try {
     const res = await fetch(`${API_BASE}/auth/login`, {
@@ -151,32 +101,69 @@ async function login() {
     });
     const data = await res.json();
 
-    if (!res.ok || !data.access_token) {
-      return showToast("Invalid credentials", "error");
+    if (res.ok && data.access_token) {
+      setToken(data.access_token);
+      localStorage.setItem("username", username);
+      showToast("Login successful!", "success");
+
+      setTimeout(() => {
+        window.location.href = "/tasks.html";   // FIXED ABSOLUTE PATH
+      }, 300);
+    } else {
+      showToast(data.msg || "Invalid credentials", "error");
     }
-
-    setToken(data.access_token);
-    localStorage.setItem("username", username);
-
-    showToast("Login successful", "success");
-    window.location.href = "/tasks";
   } catch {
-    showToast("Network error", "error");
+    showToast("Network error!", "error");
   }
 }
 
-function logoutUser() {
+function logout() {
   clearSession();
   updateNav();
-  window.location.href = "/login";
+  showToast("Logged out", "success");
+  setTimeout(() => {
+    window.location.href = "/login.html";  // FIXED
+  }, 200);
 }
 
-/* ------------------------------------------------------------
-   TASKS: LOAD / CREATE / UPDATE / DELETE
------------------------------------------------------------- */
+async function registerUser() {
+  const username = document.getElementById("username")?.value?.trim();
+  const password = document.getElementById("password")?.value?.trim();
+
+  if (!username || !password) {
+    showToast("Username and password required", "error");
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password })
+    });
+
+    if (res.ok) {
+      showToast("Registration successful!", "success");
+      setTimeout(() => {
+        window.location.href = "/login.html";  // FIXED
+      }, 300);
+    } else {
+      const data = await res.json();
+      showToast(data.msg || "Registration failed!", "error");
+    }
+  } catch {
+    showToast("Network error!", "error");
+  }
+}
+
+/* ----------------- TASKS ----------------- */
 
 async function loadTasks() {
-  if (!ensureValidToken()) return (window.location.href = "/login");
+  if (!ensureValidToken()) {
+    clearSession();
+    window.location.href = "/login.html"; // FIXED
+    return;
+  }
 
   const token = getToken();
   const filter = document.getElementById("filter")?.value || "all";
@@ -188,10 +175,11 @@ async function loadTasks() {
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` }
     });
-    const data = await res.json();
 
+    const data = await res.json();
     renderTasks(data.tasks || []);
     document.getElementById("pageLabel").innerText = `Page ${currentPage}`;
+
   } catch {
     showToast("Failed to load tasks", "error");
   }
@@ -199,148 +187,127 @@ async function loadTasks() {
 
 function renderTasks(tasks) {
   const list = document.getElementById("taskList");
-  if (!list) return;
   list.innerHTML = "";
 
-  if (!tasks.length) {
-    list.innerHTML = "<div class='small'>No tasks yet</div>";
-    return;
-  }
-
-  tasks.forEach(t => {
+  tasks.forEach(task => {
     const div = document.createElement("div");
     div.className = "task-item";
-
     div.innerHTML = `
-      <strong>${t.title}</strong>
-      <div class="small">${t.description || ""}</div>
-      <div>
-        <span class="${t.completed ? "complete-tag" : "incomplete-tag"}">
-          ${t.completed ? "Completed" : "Not Completed"}
-        </span>
-      </div>
-      <div class="mt-2">
-        <button class="btn-inline btn-primary" onclick="editTask(${t.id})">Edit</button>
-        <button class="btn-inline btn-danger" onclick="deleteTask(${t.id})">Delete</button>
+      <strong>${task.title}</strong>
+      <div class="small">${task.description || ""}</div>
+      <div><span class="${task.completed ? "complete-tag" : "incomplete-tag"}">
+        ${task.completed ? "Completed" : "Not Completed"}
+      </span></div>
+
+      <div class="controls">
+        <button class="btn-inline btn-primary" onclick="editTask(${task.id})">Edit</button>
+        <button class="btn-inline btn-danger" onclick="deleteTask(${task.id})">Delete</button>
       </div>
     `;
-
     list.appendChild(div);
   });
 }
 
 async function createTask() {
-  if (!ensureValidToken()) return (window.location.href = "/login");
+  if (!ensureValidToken()) return logout();
 
   const title = document.getElementById("title")?.value?.trim();
   const description = document.getElementById("description")?.value?.trim();
 
   if (!title) return showToast("Title required", "error");
 
+  const token = getToken();
+
   try {
     const res = await fetch(`${API_BASE}/tasks`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${getToken()}`
+        Authorization: `Bearer ${token}`
       },
       body: JSON.stringify({ title, description })
     });
 
-    if (!res.ok) return showToast("Failed to create", "error");
+    if (res.ok) {
+      showToast("Task created!");
+      document.getElementById("title").value = "";
+      document.getElementById("description").value = "";
+      loadTasks();
+    } else showToast("Failed to create task", "error");
 
-    showToast("Task created!", "success");
-    document.getElementById("title").value = "";
-    document.getElementById("description").value = "";
-    loadTasks();
   } catch {
-    showToast("Network error", "error");
+    showToast("Error creating task", "error");
   }
 }
 
 async function editTask(id) {
-  if (!ensureValidToken()) return (window.location.href = "/login");
-
   const newTitle = prompt("New title:");
   if (!newTitle) return showToast("Title required", "error");
 
   const newDesc = prompt("New description:") || "";
+
+  const token = getToken();
 
   try {
     const res = await fetch(`${API_BASE}/tasks/${id}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${getToken()}`
+        Authorization: `Bearer ${token}`
       },
       body: JSON.stringify({ title: newTitle, description: newDesc })
     });
 
-    if (!res.ok) return showToast("Update failed", "error");
+    if (res.ok) {
+      showToast("Task updated!");
+      loadTasks();
+    } else showToast("Update failed", "error");
 
-    showToast("Updated!", "success");
-    loadTasks();
   } catch {
-    showToast("Network error", "error");
+    showToast("Error updating task", "error");
   }
 }
 
 async function deleteTask(id) {
-  if (!ensureValidToken()) return (window.location.href = "/login");
+  const token = getToken();
 
   try {
     const res = await fetch(`${API_BASE}/tasks/${id}`, {
       method: "DELETE",
-      headers: { Authorization: `Bearer ${getToken()}` }
+      headers: { Authorization: `Bearer ${token}` }
     });
 
-    if (!res.ok) return showToast("Delete failed", "error");
+    if (res.ok) {
+      showToast("Task deleted!");
+      loadTasks();
+    } else showToast("Delete failed", "error");
 
-    showToast("Deleted!", "success");
-    loadTasks();
   } catch {
-    showToast("Network error", "error");
+    showToast("Error deleting task", "error");
   }
 }
 
-/* ------------------------------------------------------------
-   PAGINATION
------------------------------------------------------------- */
 function nextPage() {
   currentPage++;
   loadTasks();
 }
+
 function prevPage() {
-  if (currentPage > 1) currentPage--;
-  loadTasks();
+  if (currentPage > 1) {
+    currentPage--;
+    loadTasks();
+  }
 }
 
-/* ------------------------------------------------------------
-   DOM READY: BIND BUTTONS SAFELY
------------------------------------------------------------- */
+/* ----------------- PAGE LOAD ----------------- */
+
 document.addEventListener("DOMContentLoaded", () => {
-  updateNav();
+  initNavbar();
 
-  const loginBtn = document.querySelector("[data-action='login']");
-  if (loginBtn) loginBtn.addEventListener("click", login);
-
-  const registerBtn = document.querySelector("[data-action='register']");
-  if (registerBtn) registerBtn.addEventListener("click", registerUser);
-
-  const createBtn = document.querySelector("[data-action='create-task']");
-  if (createBtn) createBtn.addEventListener("click", createTask);
-
-  const prevBtn = document.querySelector("[data-action='prev']");
-  if (prevBtn) prevBtn.addEventListener("click", prevPage);
-
-  const nextBtn = document.querySelector("[data-action='next']");
-  if (nextBtn) nextBtn.addEventListener("click", nextPage);
-
-  // Protect tasks page
-  if (window.location.pathname === "/tasks" || window.location.pathname.endsWith("tasks.html")) {
+  if (window.location.pathname.endsWith("/tasks.html")) {
     if (!ensureValidToken()) {
-      clearSession();
-      return (window.location.href = "/login");
+      window.location.href = "/login.html";  // FIXED
+      return;
     }
     loadTasks();
   }
