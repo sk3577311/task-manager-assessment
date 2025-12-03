@@ -1,15 +1,6 @@
-// =====================================================
-// CONFIG
-// =====================================================
-
+// task-ui/app.js
 const API_BASE = "http://localhost:5000";
-const FRONTEND_BASE = "http://localhost:3000";
 let currentPage = 1;
-
-
-// =====================================================
-// TOKEN HELPERS
-// =====================================================
 
 function getToken() {
   return localStorage.getItem("token");
@@ -28,35 +19,36 @@ function clearSession() {
 function getTokenPayload() {
   const token = getToken();
   if (!token) return null;
-
   try {
     const payload = JSON.parse(atob(token.split(".")[1]));
     return payload;
-  } catch {
+  } catch (e) {
     return null;
   }
 }
 
 function ensureValidToken() {
   const token = getToken();
-  if (!token || token === "undefined" || token === "null") return false;
-
+  if (!token || token === "undefined" || token === "null") {
+    clearSession();
+    return false;
+  }
   const payload = getTokenPayload();
-  if (!payload) return false;
-
+  if (!payload) {
+    clearSession();
+    return false;
+  }
   return true;
 }
 
-
-// =====================================================
-// NAVBAR
-// =====================================================
-
+/* -------------------------
+   NAV / HEADER
+   ------------------------- */
 function updateNav() {
   const navLinks = document.getElementById("nav-links");
   const navUser = document.getElementById("nav-user");
 
-  if (!navLinks || !navUser) return;
+  if (!navLinks || !navUser) return; // nothing to do if nav not present
 
   const token = getToken();
   const username = localStorage.getItem("username");
@@ -65,31 +57,33 @@ function updateNav() {
 
   if (token && ensureValidToken()) {
     const tasksLink = document.createElement("a");
-    tasksLink.href = "tasks.html";
+    tasksLink.href = "/tasks.html";
     tasksLink.innerText = "Tasks";
+    tasksLink.className = "nav-link";
 
     const logoutBtn = document.createElement("a");
     logoutBtn.href = "#";
     logoutBtn.innerText = "Logout";
-    logoutBtn.onclick = (e) => {
-      e.preventDefault();
-      logout();
-    };
+    logoutBtn.onclick = (e) => { e.preventDefault(); logout(); };
 
     navLinks.appendChild(tasksLink);
     navLinks.appendChild(logoutBtn);
-    navUser.innerText = `Hi ${username}`;
+
+    navUser.innerText = username ? `Hi ${username}` : "";
   } else {
     const loginLink = document.createElement("a");
-    loginLink.href = "login.html";
+    loginLink.href = "/login.html";
     loginLink.innerText = "Login";
+    loginLink.className = "nav-link";
 
     const registerLink = document.createElement("a");
-    registerLink.href = "register.html";
+    registerLink.href = "/register.html";
     registerLink.innerText = "Register";
+    registerLink.className = "nav-link";
 
     navLinks.appendChild(loginLink);
     navLinks.appendChild(registerLink);
+
     navUser.innerText = "";
   }
 }
@@ -98,31 +92,32 @@ function initNavbar() {
   updateNav();
 }
 
-
-// =====================================================
-// TOASTS
-// =====================================================
-
+/* -------------------------
+   TOASTS & UI HELPERS
+   ------------------------- */
 function showToast(message, type = "success") {
   const container = document.getElementById("toast-container");
-  if (!container) return;
+  if (!container) {
+    // fallback: console
+    console.log(`[toast ${type}] ${message}`);
+    return;
+  }
 
   const toast = document.createElement("div");
   toast.className = `toast toast-${type}`;
   toast.innerText = message;
 
   container.appendChild(toast);
-  setTimeout(() => toast.remove(), 3000);
+
+  setTimeout(() => toast.remove(), 3500);
 }
 
-
-// =====================================================
-// AUTH — LOGIN / LOGOUT / REGISTER
-// =====================================================
-
+/* -------------------------
+   AUTH: LOGIN / REGISTER
+   ------------------------- */
 async function login() {
-  const username = document.getElementById("username")?.value.trim();
-  const password = document.getElementById("password")?.value.trim();
+  const username = document.getElementById("username")?.value?.trim();
+  const password = document.getElementById("password")?.value?.trim();
 
   if (!username || !password) {
     showToast("Username and password required", "error");
@@ -136,43 +131,40 @@ async function login() {
       body: JSON.stringify({ username, password })
     });
 
-    const data = await res.json();
+    const data = await res.json().catch(()=>null);
 
-    if (res.ok && data.access_token) {
+    if (res.ok && data && data.access_token) {
       setToken(data.access_token);
       localStorage.setItem("username", username);
-
+      updateNav();
       showToast("Login successful!", "success");
-
-      setTimeout(() => {
-        window.location.href = `${FRONTEND_BASE}/tasks.html`; // ABSOLUTE URL FIX
-      }, 300);
-
+      console.log("Login success - redirecting to /tasks.html");
+      // absolute redirect so Playwright sees the navigation
+      window.location.href = "/tasks.html";
     } else {
-      showToast(data.msg || "Login failed", "error");
+      showToast((data && (data.msg || data.message)) || "Invalid credentials", "error");
+      console.warn("Login failed", data);
     }
-  } catch {
-    showToast("Network error", "error");
+  } catch (e) {
+    showToast("Network error!", "error");
+    console.error("Login error", e);
   }
 }
 
-
 function logout() {
   clearSession();
-  showToast("Logged out");
-
-  setTimeout(() => {
-    window.location.href = `${FRONTEND_BASE}/login.html`; // ABSOLUTE URL FIX
-  }, 200);
+  updateNav();
+  showToast("Logged out", "success");
+  console.log("Logged out - redirecting to /login.html");
+  window.location.href = "/login.html";
 }
 
-
 async function registerUser() {
-  const username = document.getElementById("username")?.value.trim();
-  const password = document.getElementById("password")?.value.trim();
+  const username = document.getElementById("username")?.value?.trim();
+  const password = document.getElementById("password")?.value?.trim();
 
   if (!username || !password) {
-    showToast("All fields required", "error");
+    showToast("Username and password required", "error");
     return;
   }
 
@@ -183,32 +175,31 @@ async function registerUser() {
       body: JSON.stringify({ username, password })
     });
 
-    const data = await res.json();
+    const data = await res.json().catch(()=>null);
 
     if (res.ok) {
-      showToast("Registered successfully!", "success");
-
-      setTimeout(() => {
-        window.location.href = `${FRONTEND_BASE}/login.html`; // ABSOLUTE URL FIX
-      }, 300);
-
+      showToast("Registration successful!", "success");
+      console.log("Registered - redirecting to /login.html");
+      // immediate absolute redirect (no timeouts)
+      window.location.href = "/login.html";
     } else {
-      showToast(data.msg || "Registration failed", "error");
+      showToast((data && (data.msg || data.message)) || "Registration failed!", "error");
+      console.warn("Registration failed", data);
     }
-  } catch {
-    showToast("Network error", "error");
+  } catch (e) {
+    showToast("Network error!", "error");
+    console.error("Register error", e);
   }
 }
 
-
-// =====================================================
-// TASK CRUD
-// =====================================================
-
+/* -------------------------
+   TASKS: load / render / CRUD
+   ------------------------- */
 async function loadTasks() {
   if (!ensureValidToken()) {
     clearSession();
-    window.location.href = `${FRONTEND_BASE}/login.html`; // FIX
+    updateNav();
+    window.location.href = "/login.html";
     return;
   }
 
@@ -223,149 +214,195 @@ async function loadTasks() {
       headers: { Authorization: `Bearer ${token}` }
     });
 
-    const data = await res.json();
+    const data = await res.json().catch(() => null);
 
-    if (res.ok) {
-      renderTasks(data.tasks);
-      document.getElementById("pageLabel").innerText = `Page ${currentPage}`;
-    } else {
+    if (!res.ok || !data) {
       showToast("Failed to load tasks", "error");
+      console.warn("Load tasks failed", { status: res.status, data });
+      return;
     }
 
-  } catch {
-    showToast("Network error", "error");
+    renderTasks(data.tasks || []);
+    const pageLabel = document.getElementById("pageLabel");
+    if (pageLabel) pageLabel.innerText = `Page ${currentPage}`;
+  } catch (e) {
+    showToast("Failed to load tasks", "error");
+    console.error("loadTasks error", e);
   }
 }
 
-function renderTasks(tasks = []) {
+function renderTasks(tasks) {
   const list = document.getElementById("taskList");
+  if (!list) return;
   list.innerHTML = "";
 
-  tasks.forEach(task => {
+  tasks.forEach(t => {
     const div = document.createElement("div");
     div.className = "task-item";
 
-    div.innerHTML = `
-      <strong>${task.title}</strong>
-      <div class="small">${task.description || ""}</div>
-      <div>
-        <span class="${task.completed ? 'complete-tag' : 'incomplete-tag'}">
-          ${task.completed ? "Completed" : "Not Completed"}
-        </span>
-      </div>
-      <div style="margin-top: 8px;">
-        <button class="btn-inline btn-primary" onclick="editTask(${task.id})">Edit</button>
-        <button class="btn-inline btn-danger" onclick="deleteTask(${task.id})">Delete</button>
-      </div>
-    `;
+    const title = document.createElement("strong");
+    title.innerText = t.title;
+
+    const desc = document.createElement("div");
+    desc.className = "small";
+    desc.innerText = t.description || "";
+
+    const status = document.createElement("div");
+    status.innerHTML = `<span class="${t.completed ? "complete-tag" : "incomplete-tag"}">${t.completed ? "Completed" : "Not Completed"}</span>`;
+
+    const controls = document.createElement("div");
+    controls.style.marginTop = "8px";
+
+    const editBtn = document.createElement("button");
+    editBtn.className = "btn-inline btn-primary";
+    editBtn.innerText = "Edit";
+    editBtn.onclick = () => promptEditTask(t.id, t.title, t.description);
+
+    const delBtn = document.createElement("button");
+    delBtn.className = "btn-inline btn-danger";
+    delBtn.innerText = "Delete";
+    delBtn.onclick = () => deleteTask(t.id);
+
+    controls.appendChild(editBtn);
+    controls.appendChild(delBtn);
+
+    div.appendChild(title);
+    div.appendChild(desc);
+    div.appendChild(status);
+    div.appendChild(controls);
 
     list.appendChild(div);
   });
 }
 
 async function createTask() {
-  if (!ensureValidToken()) return logout();
+  if (!ensureValidToken()) {
+    clearSession(); updateNav(); window.location.href = "/login.html"; return;
+  }
 
-  const title = document.getElementById("title").value.trim();
-  const description = document.getElementById("description").value.trim();
+  const token = getToken();
+  const titleEl = document.getElementById("title");
+  const descEl = document.getElementById("description");
+  const title = titleEl?.value?.trim();
+  const description = descEl?.value?.trim();
 
-  if (!title) return showToast("Title required", "error");
+  if (!title) {
+    showToast("Title is required!", "error"); return;
+  }
 
   try {
     const res = await fetch(`${API_BASE}/tasks`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${getToken()}`
+        Authorization: `Bearer ${token}`
       },
       body: JSON.stringify({ title, description })
     });
 
-    if (!res.ok) return showToast("Create failed", "error");
+    if (!res.ok) {
+      const data = await res.json().catch(()=>null);
+      showToast((data && (data.msg || data.message)) || "Failed to create task!", "error");
+      console.warn("Create task failed", { status: res.status, data });
+      return;
+    }
 
-    showToast("Task created!");
-
-    document.getElementById("title").value = "";
-    document.getElementById("description").value = "";
-
-    loadTasks();
-
-  } catch {
-    showToast("Network error", "error");
+    showToast("Task created!", "success");
+    if (titleEl) titleEl.value = "";
+    if (descEl) descEl.value = "";
+    // small delay so backend has written the task then reload
+    setTimeout(loadTasks, 300);
+  } catch (e) {
+    showToast("Failed to create task!", "error");
+    console.error("createTask error", e);
   }
 }
 
+function promptEditTask(id, currentTitle = "", currentDesc = "") {
+  const newTitle = prompt("New title:", currentTitle);
+  if (!newTitle) {
+    showToast("Title is required!", "error");
+    return;
+  }
+  const newDesc = prompt("New description:", currentDesc);
+  updateTask(id, newTitle, newDesc);
+}
 
-async function editTask(id) {
-  const newTitle = prompt("New title:");
-  if (!newTitle) return;
+async function updateTask(id, title, description) {
+  if (!ensureValidToken()) { clearSession(); updateNav(); window.location.href="/login.html"; return; }
 
-  const newDesc = prompt("New description:") || "";
-
+  const token = getToken();
   try {
     const res = await fetch(`${API_BASE}/tasks/${id}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${getToken()}`
+        Authorization: `Bearer ${token}`
       },
-      body: JSON.stringify({ title: newTitle, description: newDesc })
+      body: JSON.stringify({ title, description })
     });
 
-    if (!res.ok) return showToast("Update failed", "error");
-
-    showToast("Task updated");
-    loadTasks();
-
-  } catch {
-    showToast("Network error", "error");
+    if (!res.ok) {
+      const data = await res.json().catch(()=>null);
+      showToast((data && (data.msg || data.message)) || "Update failed!", "error");
+      console.warn("Update task failed", { status: res.status, data });
+      return;
+    }
+    showToast("Task updated!", "success");
+    setTimeout(loadTasks, 200);
+  } catch (e) {
+    showToast("Update failed!", "error");
+    console.error("updateTask error", e);
   }
 }
 
-
 async function deleteTask(id) {
+  if (!ensureValidToken()) { clearSession(); updateNav(); window.location.href="/login.html"; return; }
+
+  const token = getToken();
   try {
     const res = await fetch(`${API_BASE}/tasks/${id}`, {
       method: "DELETE",
-      headers: { Authorization: `Bearer ${getToken()}` }
+      headers: { Authorization: `Bearer ${token}` }
     });
-
-    if (!res.ok) return showToast("Delete failed", "error");
-
-    showToast("Task deleted");
-    loadTasks();
-
-  } catch {
-    showToast("Network error", "error");
+    if (!res.ok) {
+      const data = await res.json().catch(()=>null);
+      showToast((data && (data.msg || data.message)) || "Delete failed!", "error");
+      console.warn("Delete task failed", { status: res.status, data });
+      return;
+    }
+    showToast("Task deleted!", "success");
+    setTimeout(loadTasks, 200);
+  } catch (e) {
+    showToast("Delete failed!", "error");
+    console.error("deleteTask error", e);
   }
 }
 
-
-// =====================================================
-// PAGINATION
-// =====================================================
-
+/* -------------------------
+   PAGINATION
+   ------------------------- */
 function nextPage() {
   currentPage++;
   loadTasks();
 }
 
 function prevPage() {
-  if (currentPage > 1) currentPage--;
-  loadTasks();
+  if (currentPage > 1) { currentPage--; loadTasks(); }
 }
 
-
-// =====================================================
-// INIT
-// =====================================================
-
+/* -------------------------
+   INIT
+   ------------------------- */
 document.addEventListener("DOMContentLoaded", () => {
   initNavbar();
 
-  if (window.location.pathname.endsWith("tasks.html")) {
+  // If we are on tasks page, protect it immediately
+  if (window.location.pathname.includes("tasks.html")) {
     if (!ensureValidToken()) {
-      window.location.href = `${FRONTEND_BASE}/login.html`;
+      clearSession();
+      updateNav();
+      window.location.href = "/login.html";
       return;
     }
     loadTasks();
